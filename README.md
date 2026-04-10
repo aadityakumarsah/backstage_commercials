@@ -12,6 +12,11 @@ This led us to ask:
 Each inserted product is paired with a subtle on-screen pop-up that appears for the duration of the scene, giving the viewer direct access to the Amazon product page. With one click, or a voice command, a NovaAct agent can automatically add the product to the user’s Amazon cart. This creates a seamless shopping experience without disrupting immersion.
 
 The framework also makes it easier for users to discover decor and products they notice while watching. Rather than taking screenshots, searching with Google Lens, and manually browsing results, the viewer can simply ask Nova, _“Find this tablecloth on Amazon.”_ Nova then finds a visually similar product and automatically adds it to the user’s wishlist.
+
+## Screenshots
+![Screenshot 1](frontend/prime-video-ui/public/screenshort1.png)
+![Screenshot 2](frontend/prime-video-ui/public/screenshort2.png)
+
 ## How we built it
 Our pipeline is: select a scene -> identify a horizontal/flat surface on the frame -> place a reference product into the frame -> use Nova agents to enable shopping.
 
