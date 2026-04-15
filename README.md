@@ -14,6 +14,8 @@ Each inserted product is paired with a subtle on-screen pop-up that appears for 
 The framework also makes it easier for users to discover decor and products they notice while watching. Rather than taking screenshots, searching with Google Lens, and manually browsing results, the viewer can simply ask Nova, _“Find this tablecloth on Amazon.”_ Nova then finds a visually similar product and automatically adds it to the user’s wishlist.
 ## DEMO https://www.youtube.com/watch?v=MqNsoa1Ni94&t=1s
 ## Screenshots
+![Screenshot 1](frontend/prime-video-ui/public/screenshort3.png)
+![Screenshot 1](frontend/prime-video-ui/public/screenshort4.png)
 ![Screenshot 1](frontend/prime-video-ui/public/screenshort1.png)
 ![Screenshot 2](frontend/prime-video-ui/public/screenshort2.png)
 
