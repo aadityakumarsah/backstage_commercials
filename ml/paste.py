@@ -4,16 +4,7 @@ import json
 import base64
 import mimetypes
 from PIL import Image
-from openai import OpenAI
-import dotenv
-
-dotenv.load_dotenv()
-
-client = OpenAI(
-    api_key=os.getenv("OPENROUTER_API_KEY"),
-    base_url="https://openrouter.ai/api/v1",
-)
-MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-3.1-flash-lite-preview")
+from ml._llm import client, MODEL
 
 
 def encode_image(path):
@@ -252,8 +243,8 @@ def recursive_placement(background, product, max_iters=6):
     return current_image
 
 
-background = "hs.png"
-product = "timhortons_nobg.png"
-
-final_image = recursive_placement(background, product)
-print("\nFinal image saved:", final_image)
+if __name__ == "__main__":
+    background = "hs.png"
+    product = "timhortons_nobg.png"
+    final_image = recursive_placement(background, product)
+    print("\nFinal image saved:", final_image)

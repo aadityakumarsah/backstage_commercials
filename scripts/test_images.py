@@ -1,16 +1,7 @@
 import os
 import base64
 import mimetypes
-from openai import OpenAI
-import dotenv
-
-dotenv.load_dotenv()
-
-client = OpenAI(
-    api_key=os.getenv("OPENROUTER_API_KEY"),
-    base_url="https://openrouter.ai/api/v1",
-)
-MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-3.1-flash-lite-preview")
+from ml._llm import client, MODEL
 
 
 def encode_image(path):

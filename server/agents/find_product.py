@@ -1,15 +1,5 @@
-import os
 import json
-from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
-
-client = OpenAI(
-    api_key=os.getenv("OPENROUTER_API_KEY"),
-    base_url="https://openrouter.ai/api/v1",
-)
-MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-3.1-flash-lite-preview")
+from ml._llm import client, MODEL
 
 
 def ask_search_product_agent(input_image: str, text_prompt: str) -> dict:
