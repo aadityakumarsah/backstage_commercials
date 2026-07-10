@@ -1,1400 +1,526 @@
-import React, { useMemo, useRef, useState, useEffect } from "react";
-import { Play, ArrowLeft, Search, Star, Sparkles } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  Upload,
+  Film,
+  Package,
+  X,
+  Play,
+  ShoppingCart,
+  Heart,
+  Search,
+  CheckCircle2,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
+
+const API = "";
 
 const styles = `
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Inter, system-ui, Arial, sans-serif; background: #0a0e17; color: #f0f4ff; }
+  button { cursor: pointer; font: inherit; }
+  input, textarea { font: inherit; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
 
-  html, body, #root {
-    margin: 0;
-    min-height: 100%;
-    width: 100%;
-    font-family: Inter, Arial, sans-serif;
-    background: #071422;
-    color: white;
-    overflow-x: hidden;
+  .app { min-height: 100vh; display: flex; flex-direction: column; }
+
+  .header {
+    height: 72px; display: flex; align-items: center; justify-content: center;
+    border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
   }
-
-  button {
-    font: inherit;
+  .header-inner {
+    width: 100%; max-width: 1200px; padding: 0 28px;
+    display: flex; align-items: center; justify-content: space-between;
   }
-
-  a {
-    color: inherit;
+  .brand { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  .brand-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
   }
+  .brand span { background: linear-gradient(90deg, #e0e7ff, #a5b4fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-  .app-shell {
-    min-height: 100vh;
-    width: 100vw;
-    background: linear-gradient(180deg, #0a1a2b 0%, #08192a 100%);
-    color: white;
+  .page { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 28px; }
+  .card {
+    width: 100%; max-width: 860px; background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 24px;
+    padding: 48px; backdrop-filter: blur(12px);
   }
+  .card-title { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+  .card-subtitle { color: rgba(255,255,255,0.5); font-size: 15px; margin-bottom: 32px; }
 
-  .top-header {
-    height: 88px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    padding: 0 28px;
-    width: 100%;
+  .drop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .drop-zone {
+    border: 2px dashed rgba(255,255,255,0.12); border-radius: 16px;
+    padding: 40px 20px; text-align: center; transition: all 0.2s;
+    position: relative; min-height: 200px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   }
-
-  .brand-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
+  .drop-zone.dragging { border-color: #6366f1; background: rgba(99,102,241,0.06); }
+  .drop-zone.has-file { border-color: rgba(255,255,255,0.08); padding: 16px; }
+  .drop-icon { width: 40px; height: 40px; color: rgba(255,255,255,0.25); }
+  .drop-label { font-size: 14px; color: rgba(255,255,255,0.45); }
+  .drop-hint { font-size: 12px; color: rgba(255,255,255,0.25); }
+  .drop-preview {
+    width: 100%; height: 100%; object-fit: contain; border-radius: 12px;
+    max-height: 180px;
   }
-
-  .brand-logo {
-    width: 44px;
-    height: 44px;
-    border-radius: 999px;
-    background: #d6e1f7;
-    color: #6d8fb7;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 30px;
-    font-weight: 700;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.18);
-    flex: 0 0 auto;
+  .drop-remove {
+    position: absolute; top: 8px; right: 8px; width: 28px; height: 28px;
+    border-radius: 50%; border: none; background: rgba(0,0,0,0.6);
+    color: white; display: flex; align-items: center; justify-content: center;
   }
+  .drop-filename { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 6px; }
 
-  .brand {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 34px;
-    line-height: 1;
-    font-weight: 500;
-    letter-spacing: -0.4px;
-    color: #8cb3df;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.18);
-    white-space: nowrap;
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-group input, .form-group textarea {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px; padding: 12px 14px; color: white; outline: none; transition: border-color 0.2s;
   }
+  .form-group input:focus, .form-group textarea:focus { border-color: #6366f1; }
+  .form-group textarea { resize: vertical; min-height: 80px; }
 
-  .profile-box {
-    position: absolute;
-    right: 28px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 19px;
-    color: rgba(255,255,255,0.96);
+  .btn-primary {
+    width: 100%; margin-top: 20px; padding: 16px;
+    border: none; border-radius: 14px;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    color: white; font-size: 16px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: opacity 0.2s;
   }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .profile-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: #f2c07a;
-    color: #111;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
+  .processing { text-align: center; padding: 40px 0; }
+  .processing-icon { margin-bottom: 24px; }
+  .processing h2 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  .processing p { color: rgba(255,255,255,0.5); margin-bottom: 32px; }
+
+  .progress-track {
+    width: 100%; height: 6px; border-radius: 99px;
+    background: rgba(255,255,255,0.06); overflow: hidden; margin-bottom: 24px;
   }
-
-  .main-layout {
-    display: grid;
-    grid-template-columns: 210px minmax(0, 1fr);
-    min-height: calc(100vh - 88px);
-    width: 100vw;
+  .progress-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, #6366f1, #a855f7);
+    transition: width 0.5s ease;
   }
-
-  .sidebar {
-    border-right: 1px solid rgba(255,255,255,0.12);
-    padding: 18px 28px 28px 34px;
+  .step-list { text-align: left; max-width: 400px; margin: 0 auto; }
+  .step {
+    display: flex; align-items: center; gap: 12px; padding: 10px 0;
+    font-size: 14px; color: rgba(255,255,255,0.4);
   }
+  .step.active { color: rgba(255,255,255,0.9); }
+  .step.done { color: #34d399; }
+  .step-icon { width: 20px; height: 20px; flex-shrink: 0; }
 
-  .search-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: rgba(255,255,255,0.95);
-    font-size: 16px;
-    margin-bottom: 92px;
-  }
-
-  .nav-list {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
-
-  .nav-item {
-    font-size: 22px;
-    color: rgba(255,255,255,0.9);
-    cursor: pointer;
-    font-weight: 300;
-  }
-
-  .nav-item.active {
-    font-weight: 700;
-    color: white;
-  }
-
-  .content-area {
-    min-width: 0;
-    width: 100%;
-    padding: 8px 8px 24px 12px;
-    display: flex;
-    align-items: flex-start;
-    overflow: hidden;
-  }
-
-  .poster-row {
-    width: 100%;
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-start;
-    gap: 28px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 22px 8px 16px 8px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(163,178,199,0.8) rgba(255,255,255,0.08);
-  }
-
-  .poster-row::-webkit-scrollbar {
-    height: 12px;
-  }
-
-  .poster-row::-webkit-scrollbar-track {
-    background: rgba(255,255,255,0.08);
-    border-radius: 999px;
-  }
-
-  .poster-row::-webkit-scrollbar-thumb {
-    background: rgba(163,178,199,0.8);
-    border-radius: 999px;
-  }
-
-  .poster-button {
-    border: none;
-    background: transparent;
-    padding: 0;
-    cursor: pointer;
-    flex: 0 0 auto;
-    transition: transform 0.18s ease;
-  }
-
-  .poster-button:hover {
-    transform: translateY(-5px) scale(1.02);
-  }
-
-  .poster-wrap {
-    width: 200px;
-  }
-
-  .poster-title {
-    font-size: 18px;
-    font-weight: 300;
-    color: rgba(255,255,255,0.98);
-    margin-bottom: 10px;
-    text-align: center;
-    line-height: 1.3;
-    min-height: 20px;
-    letter-spacing: 0.3px;
-    text-shadow: 0 20px 18px rgba(0, 0, 0, 0.9);
-  }
-
-  .poster-card {
-    width: 200px;
-    height: 500px;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 16px 34px rgba(0,0,0,0.4);
-    background: #0f1822;
-  }
-
-  .level-0 { margin-bottom: 0px; }
-  .level-1 { margin-bottom: 30px; }
-  .level-2 { margin-bottom: 0px; }
-  .level-3 { margin-bottom: 30px; }
-  .level-4 { margin-bottom: 0px; }
-  .level-5 { margin-bottom: 30px; }
-  .level-6 { margin-bottom: 0px; }
-  .level-7 { margin-bottom: 30px; }
-  .level-8 { margin-bottom: 0px; }
-  .level-9 { margin-bottom: 30px; }
-
-  .poster-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  .show-page {
-    min-height: 100vh;
-    background: linear-gradient(180deg, #0a1a2b 0%, #08192a 44%, #06111c 100%);
-    color: white;
-  }
-
-  .hero {
-    position: relative;
-    min-height: 68vh;
-    display: flex;
-    align-items: flex-end;
-    overflow: hidden;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
-
-  .hero-image {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center top;
-  }
-
-  .hero-gradient {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      180deg,
-      rgba(8,25,42,0.1) 0%,
-      rgba(8,25,42,0.35) 34%,
-      rgba(8,25,42,0.78) 66%,
-      #08192a 100%
-    );
-  }
-
-  .hero-topbar {
-    position: absolute;
-    top: 26px;
-    left: 32px;
-    right: 32px;
-    z-index: 10;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .back-btn {
-    border: none;
-    background: rgba(0,0,0,0.75);
-    color: white;
-    border-radius: 16px;
-    padding: 16px 24px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    backdrop-filter: blur(8px);
-    font-size: 16px;
-    font-weight: 600;
-    transform: translateY(-20px);
-  }
-
-  .back-btn:hover {
-    background: rgba(0,0,0,0.85);
-  }
-
-  .hero-content {
-    position: relative;
-    z-index: 2;
-    width: 100%;
-    padding: 0 42px 34px 42px;
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    gap: 36px;
-    align-items: end;
-    background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
-  }
-
-  .hero-poster {
-    width: 280px;
-    height: 420px;
-    border-radius: 18px;
-    overflow: hidden;
-    box-shadow: 0 24px 48px rgba(0,0,0,0.45);
-    transform: translateY(30px);
-  }
-
-  .hero-poster img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  .show-title {
-    font-size: 54px;
-    font-weight: 800;
-    margin: 0 0 10px 0;
-  }
-
-  .show-meta {
-    font-size: 18px;
-    color: rgba(255,255,255,0.82);
-    margin-bottom: 18px;
-  }
-
-  .about-text {
-    max-width: 1200px;
-    font-size: 18px;
-    line-height: 1.7;
-    color: rgba(255,255,255,0.86);
-    margin-bottom: 22px;
-  }
-
-  .watch-btn {
-    border: none;
-    background: white;
-    color: black;
-    border-radius: 16px;
-    padding: 14px 24px;
-    font-weight: 700;
-    font-size: 17px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .video-section {
-    padding: 24px 24px 40px 24px;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .video-title {
-    font-size: 28px;
-    font-weight: 700;
-    margin: 0 0 16px 0;
-    width: min(100%, 1220px);
-  }
-
-  .video-stage {
-    width: min(100%, 1220px);
-    display: flex;
-    justify-content: center;
-  }
+  .result-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+  .result-header h2 { font-size: 22px; font-weight: 600; }
 
   .video-wrap {
-    width: 100%;
-    overflow: hidden;
-    background: black;
-    box-shadow: 0 18px 36px rgba(0,0,0,0.45);
-    position: relative;
-    border-radius: 12px;
+    width: 100%; border-radius: 16px; overflow: hidden;
+    background: black; margin-bottom: 20px; position: relative;
   }
+  .video-wrap video { width: 100%; display: block; max-height: 520px; }
 
-  .video-element {
-    width: 100%;
-    height: min(100vh, 760px);
-    display: block;
-    background: black;
-    cursor: pointer;
-    position: relative;
-    z-index: 1;
-    object-fit: contain;
+  .product-card {
+    display: grid; grid-template-columns: 100px 1fr; gap: 16px;
+    padding: 16px; border-radius: 16px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 20px;
   }
-
-  .video-thumbnail-overlay {
-    position: absolute;
-    inset: 0;
-    background-size: cover;
-    background-position: center;
-    z-index: 2;
-    cursor: pointer;
+  .product-thumb {
+    width: 100px; height: 100px; border-radius: 12px; object-fit: cover;
+    background: rgba(255,255,255,0.04);
   }
+  .product-name { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .product-desc { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 8px; }
+  .product-price { font-size: 20px; font-weight: 700; color: #a5b4fc; }
 
-  .video-thumbnail-overlay::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.34) 100%);
+  .action-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .action-btn {
+    padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03); color: white; font-size: 14px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: all 0.2s;
   }
+  .action-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); }
+  .action-btn.primary { background: linear-gradient(135deg, #6366f1, #a855f7); border: none; }
+  .action-btn.primary:hover { opacity: 0.9; }
+  .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .video-overlay-play {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    border: none;
-    background: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
+  .btn-secondary {
+    width: 100%; padding: 14px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08); background: transparent;
+    color: rgba(255,255,255,0.6); font-size: 14px; font-weight: 500;
+    transition: all 0.2s;
   }
+  .btn-secondary:hover { background: rgba(255,255,255,0.04); color: white; }
 
-  .video-overlay-circle {
-    width: 88px;
-    height: 88px;
-    border-radius: 999px;
-    background: rgba(0,0,0,0.62);
-    border: 1px solid rgba(255,255,255,0.18);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(6px);
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 14px 24px; border-radius: 14px;
+    background: rgba(16, 24, 40, 0.96); border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(12px); font-size: 14px;
+    display: flex; align-items: center; gap: 10px;
+    z-index: 100; box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    animation: toast-in 0.3s ease;
   }
+  @keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
-  .timeline-block {
-    width: min(100%, 1220px);
-    margin: 16px auto 0 auto;
-  }
+  .error-msg { color: #f87171; font-size: 13px; margin-top: 4px; }
 
-  .timeline-bar {
-    position: relative;
-    height: 10px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.16);
-    overflow: hidden;
-    cursor: pointer;
-  }
-
-  .timeline-highlight {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    background: rgba(255, 198, 92, 0.5);
-    z-index: 1;
-  }
-
-  .timeline-progress {
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    background: white;
-    z-index: 2;
-  }
-
-  .player-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 18px;
-    padding-top: 14px;
-    flex-wrap: wrap;
-  }
-
-  .player-left {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-  }
-
-  .play-btn {
-    border: none;
-    background: rgba(255,255,255,0.14);
-    color: white;
-    border-radius: 12px;
-    padding: 10px 14px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-  }
-
-  .nova-btn {
-    border: none;
-    background: linear-gradient(135deg, #ffb347 0%, #ff7a18 100%);
-    color: white;
-    border-radius: 12px;
-    padding: 10px 14px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-weight: 700;
-    box-shadow: 0 8px 18px rgba(255, 122, 24, 0.28);
-  }
-
-  .nova-btn:disabled {
-    opacity: 0.7;
-    cursor: wait;
-  }
-
-  .time-label,
-  .frame-label {
-    color: rgba(255,255,255,0.84);
-    font-size: 14px;
-  }
-
-  .product-overlay {
-    position: absolute;
-    left: 24px;
-    right: 24px;
-    bottom: 12px;
-    width: auto;
-    max-width: 760px;
-    z-index: 5;
-    display: grid;
-    grid-template-columns: 100px 1fr;
-    gap: 12px;
-    padding: 0px 12px;
-    border-radius: 16px;
-    background: rgba(7, 16, 28, 0.88);
-    border: 1px solid rgba(255,255,255,0.12);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 16px 34px rgba(0,0,0,0.4);
-    cursor: pointer;
-    transition: opacity 0.25s ease, transform 0.25s ease;
-    transform: translateY(8px);
-  }
-
-  .product-overlay-out {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-
-  .product-image {
-    width: 100px;
-    height: 100px;
-    margin: 5px 0px 0px 0px;
-    border-radius: 12px;
-    object-fit: cover;
-    display: block;
-  }
-
-  .product-body {
-    min-width: 0;
-  }
-
-  .product-title {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: 1px;
-  }
-
-  .product-desc {
-    font-size: 14px;
-    line-height: 1.45;
-    color: rgba(255,255,255,0.82);
-    margin-bottom: -10px;
-  }
-
-  .product-meta {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-
-  .product-price {
-    font-size: 18px;
-    font-weight: 700;
-    color: #ffd27a;
-  }
-
-  .product-stars {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: #ffd27a;
-  }
-
-  .product-countdown-track {
-    width: 100%;
-    height: 6px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.14);
-    overflow: hidden;
-  }
-
-  .product-countdown-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #ffd27a 0%, #ff8a5b 100%);
-    transition: width 0.35s ease;
-    will-change: width;
-  }
-
-  .product-note {
-    margin-top: 8px;
-    font-size: 12px;
-    color: rgba(255,255,255,0.7);
-  }
-
-  .nova-toast {
-    position: absolute;
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-10px);
-    z-index: 8;
-    min-width: 320px;
-    max-width: min(92%, 760px);
-    padding: 14px 16px;
-    border-radius: 16px;
-    background: rgba(10, 22, 38, 0.96);
-    border: 1px solid rgba(255,255,255,0.14);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.45);
-    backdrop-filter: blur(10px);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.28s ease, transform 0.28s ease;
-  }
-
-  .nova-toast-show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-    pointer-events: auto;
-  }
-
-  .nova-toast-title {
-    font-size: 14px;
-    font-weight: 800;
-    color: #ffbe66;
-    margin-bottom: 6px;
-  }
-
-  .nova-toast-text {
-    font-size: 14px;
-    line-height: 1.45;
-    color: rgba(255,255,255,0.9);
-    margin-bottom: 8px;
-  }
-
-  .nova-toast-link {
-    font-size: 14px;
-    font-weight: 700;
-    color: #8fc7ff;
-    text-decoration: none;
-    word-break: break-all;
-  }
-
-  .nova-toast-link:hover {
-    text-decoration: underline;
-  }
-
-  .loading-box,
-  .error-box,
-  .config-box {
-    width: min(100%, 900px);
-    margin: 20px auto 0 auto;
-    padding: 18px 20px;
-    border-radius: 16px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
-  }
-
-  .error-box {
-    color: #ffb4b4;
-    background: rgba(255, 84, 84, 0.08);
-    border-color: rgba(255, 84, 84, 0.25);
-  }
-
-  .config-box pre {
-    white-space: pre-wrap;
-    word-break: break-word;
-    margin: 12px 0 0 0;
-    padding: 14px;
-    border-radius: 12px;
-    background: rgba(0,0,0,0.28);
-    overflow-x: auto;
-  }
-
-  @media (max-width: 900px) {
-    .main-layout {
-      grid-template-columns: 1fr;
-    }
-
-    .sidebar {
-      display: none;
-    }
-
-    .hero-content {
-      grid-template-columns: 1fr;
-    }
-
-    .hero-poster {
-      width: 220px;
-      height: 330px;
-    }
-
-    .show-title {
-      font-size: 38px;
-    }
-
-    .product-overlay {
-      grid-template-columns: 1fr;
-    }
-
-    .product-image {
-      width: 100%;
-      height: 180px;
-    }
+  @media (max-width: 640px) {
+    .drop-grid, .form-row, .action-grid { grid-template-columns: 1fr; }
+    .card { padding: 28px 20px; }
   }
 `;
 
-const CONFIG_EXAMPLE = `# id|videoPath|startFrame|endFrame|productImage|productTitle|productDescription|price|rating|url
-suits|/videos/suits.mp4|150|320|/products/watch.jpg|Omega Seamaster|Luxury steel watch seen in the office scene.|$299.99|5|https://example.com/omega
-theboys|/videos/theboys.mp4|90|240|/products/shoes.jpg|Black Sneakers|Streetwear sneakers featured in the episode.|$129.99|4|https://example.com/shoes`;
+function DropZone({ icon: Icon, label, hint, accept, file, onFile, mimePrefix }) {
+  const inputRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
 
-const baseShows = [
-  {
-    id: "theboys",
-    title: "The BOYS",
-    year: "2026",
-    genre: "Drama",
-    description: "A simple placeholder page for your TV show. Replace this text with the real summary.",
-    poster:
-      "https://resizing.flixster.com/mmvBo8CgJiLxvYSimsMguhNEv58=/ems.cHJkLWVtcy1hc3NldHMvdHZzZWFzb24vYWM4MWJjZjUtN2I0My00NmQwLThmZjEtOTA0NTU4OWNlOWE3LmpwZw==",
-    level: 0,
-  },
-  {
-    id: "suits",
-    title: "Suits",
-    year: "2011",
-    genre: "Drama",
-    description:
-      "Before he was a lawyer, he was a fraud. Meet Mike Ross, a brilliant college dropout who accidentally lands a job at one of New York City's top law firms alongside Harvey Specter, the city's best closer. There's just one catch: Mike never went to law school.",
-    poster:
-      "https://resizing.flixster.com/u8-QdjD-tUZ_G9zrTr3-Z58PuYk=/ems.cHJkLWVtcy1hc3NldHMvdHZzZWFzb24vUlRUVjYyNDE5LndlYnA=",
-    level: 1,
-  },
-  {
-    id: "breaking-bad",
-    title: "Breaking Bad",
-    year: "2008",
-    genre: "Crime",
-    description:
-      "Walter White, a struggling high school chemistry teacher, is diagnosed with advanced lung cancer. To secure his family's financial future, he turns to a life of crime.",
-    poster: "https://resizing.flixster.com/-XZAfHZM39UwaGJIFWKAE8fS0ak=/v3/t/assets/p185846_b_v8_ad.jpg",
-    level: 2,
-  },
-  {
-    id: "desperate-housewives",
-    title: "Desperate Housewives",
-    year: "2004",
-    genre: "Drama",
-    description:
-      "Welcome to Wisteria Lane, where the grass is green, the houses are perfect, and the secrets are deadly.",
-    poster: "https://resizing.flixster.com/-XZAfHZM39UwaGJIFWKAE8fS0ak=/v3/t/assets/p7896059_b_v13_ab.jpg",
-    level: 3,
-  },
-  {
-    id: "fallout",
-    title: "Fallout",
-    year: "2024",
-    genre: "Drama",
-    description:
-      "Based on one of the greatest video games of all time, Fallout is the story of haves and have-nots in a world in which there’s almost nothing left to have. 200 years after the apocalypse, the gentle denizens of luxury fallout shelters are forced to return to the incredibly complex, gleefully weird and highly violent universe waiting for them above.",
-    poster:
-      "https://resizing.flixster.com/_suBUkrhJoxiUqiRIuQncCEhJ-o=/ems.cHJkLWVtcy1hc3NldHMvdHZzZWFzb24vYWI1NDExNWMtZGJiYS00Mjg2LTk2NTYtOTJkODA0N2M2YzMxLmpwZw==",
-    level: 4,
-  },
-  {
-    id: "prison-break",
-    title: "Prison Break",
-    year: "2005",
-    genre: "Drama",
-    description:
-      "A man framed for his brother's murder escapes prison and returns home to exact revenge.",
-    poster: "https://resizing.flixster.com/-XZAfHZM39UwaGJIFWKAE8fS0ak=/v3/t/assets/p7894210_b_v8_al.jpg",
-    level: 5,
-  },
-  {
-    id: "the-walking-dead",
-    title: "The Walking Dead",
-    year: "2010",
-    genre: "Drama",
-    description:
-      "A group of survivors are on a mission to find a safe and secure location after a zombie apocalypse.",
-    poster:
-      "https://resizing.flixster.com/Lzq-nUwBS4DCJDOoSpOVTsCdJ5E=/ems.cHJkLWVtcy1hc3NldHMvdHZzZWFzb24vUlRUVjIwMTY1MC53ZWJw",
-    level: 6,
-  },
-  {
-    id: "young-sherlock",
-    title: "Young Sherlock",
-    year: "2026",
-    genre: "Adventure",
-    description:
-      "A young Sherlock Holmes and his friend Dr. Watson solve crimes in 19th-century London.",
-    poster:
-      "https://resizing.flixster.com/6KYdhwSCt5lyHfNgMA4RZX-vPTU=/ems.cHJkLWVtcy1hc3NldHMvdHZzZXJpZXMvZGI2YmU1M2QtYmIyNS00ZTJhLTk4NmItYTBiMDgyMTE1NTUzLmpwZw==",
-    level: 7,
-  },
-  {
-    id: "game-of-thrones",
-    title: "Game of Thrones",
-    year: "2026",
-    genre: "Mystery",
-    description:
-      "Epic fantasy drama about noble families fighting for control of the Iron Throne.",
-    poster: "https://resizing.flixster.com/-XZAfHZM39UwaGJIFWKAE8fS0ak=/v3/t/assets/p12502846_b_v8_aa.jpg",
-    level: 8,
-  },
-  {
-    id: "big-bang-theory",
-    title: "The Big Bang Theory",
-    year: "2026",
-    genre: "Comedy",
-    description:
-      "A group of brilliant scientists navigate friendship, love, and awkward social situations.",
-    poster:
-      "https://resizing.flixster.com/P4WwV56xWD5lH558e8HSol0ZB-U=/fit-in/705x460/v2/https://resizing.flixster.com/-XZAfHZM39UwaGJIFWKAE8fS0ak=/v3/t/assets/p185554_b_v10_az.jpg",
-    level: 9,
-  },
-];
+  const handleDrop = useCallback((e) => {
+    e.preventDefault(); setDragging(false);
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith(mimePrefix)) onFile(f);
+  }, [onFile, mimePrefix]);
 
-function parseVideoConfig(text) {
-  const map = {};
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  for (const line of lines) {
-    if (line.startsWith("#")) continue;
-
-    const parts = line.split("|").map((part) => part.trim());
-    if (parts.length < 10) continue;
-
-    const [
-      id,
-      videoSrc,
-      startFrameRaw,
-      endFrameRaw,
-      productImage,
-      productTitle,
-      productDescription,
-      price,
-      ratingRaw,
-      productUrl,
-    ] = parts;
-
-    map[id] = {
-      videoSrc,
-      highlightStartFrame: Number(startFrameRaw) || 0,
-      highlightEndFrame: Number(endFrameRaw) || 0,
-      productImage,
-      productTitle,
-      productDescription,
-      price,
-      rating: Math.max(0, Math.min(5, Number(ratingRaw) || 0)),
-      productUrl,
-    };
-  }
-
-  return map;
-}
-
-function formatTime(seconds) {
-  if (!Number.isFinite(seconds)) return "0:00";
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${mins}:${secs}`;
-}
-
-function Sidebar() {
-  const items = ["Home", "TV shows", "Movies", "Newest", "My list"];
-
-  return (
-    <aside className="sidebar">
-      <div className="search-label">
-        <Search size={16} />
-        <span>Search</span>
-      </div>
-
-      <nav className="nav-list">
-        {items.map((item, i) => (
-          <div key={item} className={`nav-item ${i === 0 ? "active" : ""}`}>
-            {item}
-          </div>
-        ))}
-      </nav>
-    </aside>
-  );
-}
-
-function Header() {
-  return (
-    <div className="top-header">
-      <div className="brand-wrap">
-        <div className="brand-logo">B</div>
-        <div className="brand">BackstageCommercials</div>
-      </div>
-
-      <div className="profile-box">
-        <div className="profile-avatar">M</div>
-        <span>Max</span>
-      </div>
-    </div>
-  );
-}
-
-function HomePage({ shows, onOpenShow }) {
-  return (
-    <div className="app-shell">
-      <Header />
-      <div className="main-layout">
-        <Sidebar />
-
-        <main className="content-area">
-          <div className="poster-row">
-            {shows.map((show) => (
-              <button
-                key={show.id}
-                onClick={() => onOpenShow(show.id)}
-                className={`poster-button level-${show.level}`}
-                type="button"
-              >
-                <div className="poster-wrap">
-                  <div className="poster-title">{show.title}</div>
-                  <div className="poster-card">
-                    <img src={show.poster} alt={show.title} className="poster-image" />
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </main>
-      </div>
-    </div>
-  );
-}
-
-function Stars({ rating }) {
-  return (
-    <div className="product-stars">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star key={i} size={14} fill={i < rating ? "currentColor" : "none"} />
-      ))}
-    </div>
-  );
-}
-
-function ProductOverlay({ show, remainingRatio, isLeaving }) {
-  const openProduct = () => {
-    if (!show.productUrl) return;
-    window.open(show.productUrl, "_blank", "noopener,noreferrer");
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      openProduct();
-    }
+  const handleChange = (e) => {
+    const f = e.target.files[0];
+    if (f) onFile(f);
   };
 
   return (
     <div
-      className={`product-overlay ${isLeaving ? "product-overlay-out" : ""}`}
-      onClick={openProduct}
-      onKeyDown={handleKeyDown}
-      role="button"
-      tabIndex={0}
+      className={`drop-zone ${dragging ? "dragging" : ""} ${file ? "has-file" : ""}`}
+      onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={handleDrop}
+      onClick={() => !file && inputRef.current?.click()}
     >
-      <img src={show.productImage} alt={show.productTitle} className="product-image" />
-      <div className="product-body">
-        <div className="product-title">{show.productTitle}</div>
-        <div className="product-desc">{show.productDescription}</div>
-
-        <div className="product-meta">
-          <div className="product-price">{show.price}</div>
-          <Stars rating={show.rating} />
-        </div>
-
-        <div className="product-countdown-track">
-          <div
-            className="product-countdown-fill"
-            style={{
-              width: `${Math.max(0, Math.min(1, remainingRatio)) * 100}%`,
-            }}
-          />
-        </div>
-
-        <div className="product-note">Offer disappears when this scene ends</div>
-      </div>
+      {file ? (
+        <>
+          {mimePrefix === "image/" ? (
+            <img src={URL.createObjectURL(file)} alt="" className="drop-preview" />
+          ) : (
+            <video src={URL.createObjectURL(file)} className="drop-preview" />
+          )}
+          <div className="drop-filename">{file.name}</div>
+          <button className="drop-remove" onClick={(e) => { e.stopPropagation(); onFile(null); }}>
+            <X size={14} />
+          </button>
+        </>
+      ) : (
+        <>
+          <Icon className="drop-icon" />
+          <div className="drop-label">{label}</div>
+          <div className="drop-hint">{hint}</div>
+        </>
+      )}
+      <input ref={inputRef} type="file" accept={accept} onChange={handleChange} style={{ display: "none" }} />
     </div>
   );
 }
 
-function EpisodePlayer({ show }) {
-  const videoRef = useRef(null);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [hasStarted, setHasStarted] = useState(false);
-  const [showProductOverlay, setShowProductOverlay] = useState(false);
-  const [isOverlayLeaving, setIsOverlayLeaving] = useState(false);
-  const [isNovaLoading, setIsNovaLoading] = useState(false);
-  const [showNovaToast, setShowNovaToast] = useState(false);
+function UploadPage({ onStartRender }) {
+  const [video, setVideo] = useState(null);
+  const [productImg, setProductImg] = useState(null);
+  const [productName, setProductName] = useState("");
+  const [productDesc, setProductDesc] = useState("");
+  const [productPrice, setProductPrice] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const fps = 30;
-  const src = show.videoSrc;
-  const highlightStartFrame = show.highlightStartFrame ?? 0;
-  const highlightEndFrame = show.highlightEndFrame ?? 0;
-  const highlightStartTime = highlightStartFrame / fps;
-  const highlightEndTime = highlightEndFrame / fps;
+  const canRender = video && productImg && productName.trim();
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+  const handleRender = async () => {
+    if (!canRender) return;
+    setLoading(true); setError("");
 
-    setCurrentTime(0);
-    setDuration(0);
-    setIsPlaying(false);
-    setHasStarted(false);
-    setIsNovaLoading(false);
-    setShowNovaToast(false);
-
-    const onLoaded = () => setDuration(video.duration || 0);
-    const onTime = () => setCurrentTime(video.currentTime || 0);
-    const onPlay = () => {
-      setIsPlaying(true);
-      setHasStarted(true);
-    };
-    const onPause = () => setIsPlaying(false);
-    const onEnded = () => setIsPlaying(false);
-
-    video.addEventListener("loadedmetadata", onLoaded);
-    video.addEventListener("timeupdate", onTime);
-    video.addEventListener("play", onPlay);
-    video.addEventListener("pause", onPause);
-    video.addEventListener("ended", onEnded);
-
-    return () => {
-      video.removeEventListener("loadedmetadata", onLoaded);
-      video.removeEventListener("timeupdate", onTime);
-      video.removeEventListener("play", onPlay);
-      video.removeEventListener("pause", onPause);
-      video.removeEventListener("ended", onEnded);
-    };
-  }, [src]);
-
-  const progressPercent = duration ? (currentTime / duration) * 100 : 0;
-  const highlightLeft = duration ? (highlightStartTime / duration) * 100 : 0;
-  const highlightWidth = duration
-    ? ((highlightEndTime - highlightStartTime) / duration) * 100
-    : 0;
-
-  const extendedEndTime = highlightEndTime + 1.25;
-  const displayZoneActive =
-    currentTime >= highlightStartTime &&
-    currentTime <= extendedEndTime &&
-    Boolean(show.productImage);
-
-  const remainingRatio =
-    extendedEndTime > highlightStartTime
-      ? (extendedEndTime - currentTime) / (extendedEndTime - highlightStartTime)
-      : 0;
-
-  const togglePlay = async () => {
-    const video = videoRef.current;
-    if (!video || !src) return;
+    const form = new FormData();
+    form.append("video", video);
+    form.append("product_image", productImg);
+    form.append("product_name", productName);
+    form.append("product_description", productDesc || productName);
+    if (productPrice) form.append("product_price", productPrice);
 
     try {
-      if (video.paused) {
-        await video.play();
-      } else {
-        video.pause();
+      const res = await fetch(`${API}/render`, { method: "POST", body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error: ${res.status}`);
       }
-    } catch (err) {
-      console.error("Video play error:", err);
+      const data = await res.json();
+      onStartRender(data.job_id, {
+        productName, productDesc: productDesc || productName, productPrice,
+        productImage: URL.createObjectURL(productImg),
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleSeek = (e) => {
-    const video = videoRef.current;
-    if (!video || !duration) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
-    video.currentTime = Math.max(0, Math.min(duration, ratio * duration));
-  };
-
-  const handleNovaSearch = () => {
-    if (isNovaLoading) return;
-
-    setIsNovaLoading(true);
-    setShowNovaToast(false);
-
-    setTimeout(() => {
-      setIsNovaLoading(false);
-      setShowNovaToast(true);
-
-      setTimeout(() => {
-        setShowNovaToast(false);
-      }, 9000);
-    }, 6000);
-  };
-
-  useEffect(() => {
-    if (displayZoneActive) {
-      setShowProductOverlay(true);
-      setIsOverlayLeaving(false);
-      return;
-    }
-
-    if (showProductOverlay) {
-      setIsOverlayLeaving(true);
-      const timeout = setTimeout(() => {
-        setShowProductOverlay(false);
-        setIsOverlayLeaving(false);
-      }, 250);
-
-      return () => clearTimeout(timeout);
-    }
-  }, [displayZoneActive, showProductOverlay]);
 
   return (
-    <div>
-      <div className="video-stage">
-        <div className="video-wrap">
-          {showNovaToast && (
-            <div className={`nova-toast ${showNovaToast ? "nova-toast-show" : ""}`}>
-              <div className="nova-toast-title">Amazon Nova Search</div>
-              <div className="nova-toast-text">
-                Prompt found product match: {show.productTitle || "Detected product"}.
-              </div>
-              {"https://www.amazon.com/exec/obidos/asin/B01C35MZVG/rdbests-20/?utm_source=nova.amazon.com" && (
-                <a
-                  href={"https://www.amazon.com/exec/obidos/asin/B01C35MZVG/rdbests-20/?utm_source=nova.amazon.com"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="nova-toast-link"
-                >
-                  {"https://www.amazon.com/exec/obidos/asin/B01C35MZVG/rdbests-20/?utm_source=nova.amazon.com"}
-                </a>
-              )}
-            </div>
-          )}
+    <div className="page">
+      <div className="card">
+        <div className="card-title">Add a product to your video</div>
+        <div className="card-subtitle">Upload a video and a product image. We'll place it naturally into the scene.</div>
 
-          <video
-            ref={videoRef}
-            src={src}
-            className="video-element"
-            controls={false}
-            preload="metadata"
-            poster={show.poster}
-            onClick={togglePlay}
+        <div className="drop-grid">
+          <DropZone
+            icon={Film} label="Upload your video"
+            hint="MP4, MOV — any length" accept="video/*" mimePrefix="video/"
+            file={video} onFile={setVideo}
           />
-
-          {!hasStarted && (
-            <div
-              className="video-thumbnail-overlay"
-              onClick={togglePlay}
-              style={{ backgroundImage: `url(${show.poster})` }}
-            />
-          )}
-
-          {!isPlaying && (
-            <button className="video-overlay-play" onClick={togglePlay} type="button">
-              <div className="video-overlay-circle">
-                <Play size={36} fill="white" />
-              </div>
-            </button>
-          )}
-
-          {showProductOverlay && (
-            <ProductOverlay
-              show={show}
-              remainingRatio={remainingRatio}
-              isLeaving={isOverlayLeaving}
-            />
-          )}
+          <DropZone
+            icon={Package} label="Upload product image"
+            hint="PNG with transparency works best" accept="image/*" mimePrefix="image/"
+            file={productImg} onFile={setProductImg}
+          />
         </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>Product name</label>
+            <input
+              placeholder="e.g. Wooden Coffee Table"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <label>Price (optional)</label>
+            <input
+              placeholder="e.g. $249.99"
+              value={productPrice}
+              onChange={(e) => setProductPrice(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>Description (optional)</label>
+          <textarea
+            placeholder="Describe the product for AI placement..."
+            value={productDesc}
+            onChange={(e) => setProductDesc(e.target.value)}
+          />
+        </div>
+
+        {error && <div className="error-msg">{error}</div>}
+
+        <button className="btn-primary" disabled={!canRender || loading} onClick={handleRender}>
+          {loading ? <Loader2 size={18} className="spin" /> : <Sparkles size={18} />}
+          {loading ? "Uploading..." : "Render Product into Video"}
+        </button>
       </div>
+    </div>
+  );
+}
 
-      <div className="timeline-block">
-        <div className="timeline-bar" onClick={handleSeek}>
-          <div
-            className="timeline-highlight"
-            style={{
-              left: `${highlightLeft}%`,
-              width: `${highlightWidth}%`,
-            }}
-          />
-          <div
-            className="timeline-progress"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
+const STEPS = [
+  "Analyzing scene structure",
+  "Detecting placement surfaces",
+  "Positioning product in scene",
+  "Blending with AI generation",
+  "Finalizing output video",
+];
 
-        <div className="player-controls">
-          <div className="player-left">
-            <button onClick={togglePlay} className="play-btn" type="button">
-              <Play size={16} />
-              <span>{isPlaying ? "Pause" : "Play"}</span>
-            </button>
+function ProcessingPage({ jobId }) {
+  const [progress, setProgress] = useState(0);
+  const [activeStep, setActiveStep] = useState(-1);
 
-            <button
-              onClick={handleNovaSearch}
-              className="nova-btn"
-              type="button"
-              disabled={isNovaLoading}
-            >
-              <Sparkles size={16} />
-              <span>{isNovaLoading ? "Listening..." : "Ask Nova"}</span>
-            </button>
+  useEffect(() => {
+    let cancelled = false;
+    const totalDuration = 25000;
+    const stepInterval = totalDuration / STEPS.length;
+    const start = Date.now();
 
-            <span className="time-label">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
+    const tick = () => {
+      if (cancelled) return;
+      const elapsed = Date.now() - start;
+      const pct = Math.min(elapsed / totalDuration, 1);
+      setProgress(pct);
+      setActiveStep(Math.min(Math.floor(elapsed / stepInterval), STEPS.length - 1));
+      if (pct < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <div className="page">
+      <div className="card" style={{ maxWidth: 520 }}>
+        <div className="processing">
+          <div className="processing-icon">
+            <Loader2 size={48} className="spin" style={{ color: "#6366f1", animation: "spin 1.5s linear infinite" }} />
+          </div>
+          <h2>Processing your video</h2>
+          <p>Our AI is placing your product into the scene. This may take a minute.</p>
+
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
           </div>
 
-          {/* <div className="frame-label">
-            Highlight frames: {highlightStartFrame} - {highlightEndFrame}
-          </div> */}
+          <div className="step-list">
+            {STEPS.map((s, i) => (
+              <div key={s} className={`step ${i < activeStep ? "done" : i === activeStep ? "active" : ""}`}>
+                {i < activeStep ? <CheckCircle2 className="step-icon" /> :
+                 i === activeStep ? <Loader2 size={16} className="step-icon spin" style={{ animation: "spin 1s linear infinite" }} /> :
+                 <div className="step-icon" />}
+                {s}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function ShowPage({ show, onBack }) {
-  const videoSectionRef = useRef(null);
+function ResultPage({ result, productInfo, onReset }) {
+  const videoRef = useRef(null);
+  const [toast, setToast] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
 
-  const scrollToVideo = () => {
-    videoSectionRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 4000); };
+
+  const callAgent = async (endpoint, body) => {
+    setActionLoading(endpoint);
+    try {
+      const res = await fetch(`${API}${endpoint}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) showToast("Done! Check your browser.");
+      else showToast(`Error: ${data.error || res.status}`);
+    } catch (e) {
+      showToast(`Error: ${e.message}`);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
-    <div className="show-page">
-      <section className="hero">
-        <img src={show.poster} alt={show.title} className="hero-image" />
-        <div className="hero-gradient" />
-
-        <div className="hero-topbar">
-          <button onClick={onBack} className="back-btn" type="button">
-            <ArrowLeft size={16} />
-            <span>Back</span>
-          </button>
-
-          <div className="profile-box" style={{ position: "static", transform: "none" }}>
-            <div className="profile-avatar">M</div>
-            <span>Max</span>
-          </div>
+    <div className="page">
+      <div className="card">
+        <div className="result-header">
+          <CheckCircle2 size={24} style={{ color: "#34d399" }} />
+          <h2>Your video is ready</h2>
         </div>
 
-        <div className="hero-content">
-          <div className="hero-poster">
-            <img src={show.poster} alt={show.title} />
-          </div>
-
-          <div>
-            <h1 className="show-title">{show.title}</h1>
-            <div className="show-meta">
-              {show.year} · {show.genre}
+        <div className="video-wrap">
+          {result?.video_url ? (
+            <video ref={videoRef} src={result.video_url} controls autoPlay playsInline />
+          ) : (
+            <div style={{ padding: "80px 20px", textAlign: "center", color: "rgba(255,255,255,0.3)" }}>
+              Rendered video will appear here
             </div>
-            <div className="about-text">{show.description}</div>
+          )}
+        </div>
 
-            <button className="watch-btn" onClick={scrollToVideo} type="button">
-              <Play size={18} />
-              <span>Watch</span>
-            </button>
+        <div className="product-card">
+          <img src={productInfo.productImage} alt={productInfo.productName} className="product-thumb" />
+          <div>
+            <div className="product-name">{productInfo.productName}</div>
+            <div className="product-desc">{productInfo.productDesc}</div>
+            {productInfo.productPrice && <div className="product-price">{productInfo.productPrice}</div>}
           </div>
         </div>
-      </section>
 
-      <section className="video-section" ref={videoSectionRef}>
-        <h2 className="video-title">Now watching</h2>
-        <EpisodePlayer show={show} />
-      </section>
+        <div className="action-grid">
+          <button
+            className="action-btn"
+            disabled={actionLoading === "/find-it-on-amazon"}
+            onClick={() => callAgent("/find-it-on-amazon", {
+              image_url: "frame_001.jpg",
+              user_prompt: `Find ${productInfo.productName} on Amazon`,
+            })}
+          >
+            {actionLoading === "/find-it-on-amazon" ? <Loader2 size={16} className="spin" /> : <Search size={16} />}
+            Find on Amazon
+          </button>
+          <button
+            className="action-btn primary"
+            disabled={actionLoading === "/add-it-to-shopping-cart"}
+            onClick={() => callAgent("/add-it-to-shopping-cart", {
+              product_url: `https://www.amazon.ca/s?k=${encodeURIComponent(productInfo.productName)}`,
+            })}
+          >
+            {actionLoading === "/add-it-to-shopping-cart" ? <Loader2 size={16} className="spin" /> : <ShoppingCart size={16} />}
+            Add to Cart
+          </button>
+          <button
+            className="action-btn"
+            disabled={actionLoading === "/add-it-to-shopping-list"}
+            onClick={() => callAgent("/add-it-to-shopping-list", {
+              product_url: `https://www.amazon.ca/s?k=${encodeURIComponent(productInfo.productName)}`,
+              list_name: "wishlist",
+            })}
+          >
+            {actionLoading === "/add-it-to-shopping-list" ? <Loader2 size={16} className="spin" /> : <Heart size={16} />}
+            Add to Wishlist
+          </button>
+        </div>
+
+        <button className="btn-secondary" onClick={onReset}>
+          <Upload size={16} /> Render Another
+        </button>
+      </div>
+
+      {toast && <div className="toast"><CheckCircle2 size={18} style={{ color: "#34d399" }} />{toast}</div>}
     </div>
   );
 }
 
 export default function App() {
-  const [videoConfig, setVideoConfig] = useState({});
-  const [configLoading, setConfigLoading] = useState(true);
-  const [configError, setConfigError] = useState("");
-  const [selectedShowId, setSelectedShowId] = useState(null);
+  const [page, setPage] = useState("upload");
+  const [jobId, setJobId] = useState(null);
+  const [productInfo, setProductInfo] = useState(null);
+  const [result, setResult] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const handleStartRender = (id, info) => {
+    setJobId(id);
+    setProductInfo(info);
+    setPage("processing");
+    setTimeout(() => {
+      setResult({ job_id: id, video_url: null });
+      setPage("result");
+    }, 6000);
+  };
 
-    async function loadConfig() {
-      try {
-        setConfigLoading(true);
-        setConfigError("");
-
-        const res = await fetch("/video_config.txt");
-        if (!res.ok) {
-          throw new Error(`Failed to load /video_config.txt (${res.status})`);
-        }
-
-        const text = await res.text();
-        const parsed = parseVideoConfig(text);
-
-        if (!cancelled) {
-          setVideoConfig(parsed);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setConfigError(err.message || "Failed to load video config.");
-        }
-      } finally {
-        if (!cancelled) {
-          setConfigLoading(false);
-        }
-      }
-    }
-
-    loadConfig();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const shows = useMemo(() => {
-    return baseShows.map((show) => ({
-      ...show,
-      videoSrc: videoConfig[show.id]?.videoSrc || "",
-      highlightStartFrame: videoConfig[show.id]?.highlightStartFrame ?? 0,
-      highlightEndFrame: videoConfig[show.id]?.highlightEndFrame ?? 0,
-      productImage: videoConfig[show.id]?.productImage || "",
-      productTitle: videoConfig[show.id]?.productTitle || "",
-      productDescription: videoConfig[show.id]?.productDescription || "",
-      price: videoConfig[show.id]?.price || "",
-      rating: videoConfig[show.id]?.rating ?? 0,
-      productUrl: videoConfig[show.id]?.productUrl || "",
-    }));
-  }, [videoConfig]);
-
-  const selectedShow = useMemo(
-    () => shows.find((show) => show.id === selectedShowId) || null,
-    [shows, selectedShowId]
-  );
+  const handleReset = () => {
+    setPage("upload");
+    setJobId(null);
+    setProductInfo(null);
+    setResult(null);
+  };
 
   return (
-    <>
+    <div className="app">
       <style>{styles}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
-      {configLoading ? (
-        <div className="app-shell">
-          <Header />
-          <div className="loading-box">Loading video config...</div>
-          <div className="config-box">
-            Create <strong>public/video_config.txt</strong> with this format:
-            <br />
-            <pre>{CONFIG_EXAMPLE}</pre>
+      <header className="header">
+        <div className="header-inner">
+          <div className="brand">
+            <div className="brand-icon">B</div>
+            <span>BackstageCommercials</span>
           </div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)" }}>AI Product Placement</div>
         </div>
-      ) : configError ? (
-        <div className="app-shell">
-          <Header />
-          <div className="error-box">{configError}</div>
-          <div className="config-box">
-            Expected format for <strong>public/video_config.txt</strong>:
-            <br />
-            <pre>{CONFIG_EXAMPLE}</pre>
-          </div>
-        </div>
-      ) : selectedShow ? (
-        <ShowPage show={selectedShow} onBack={() => setSelectedShowId(null)} />
-      ) : (
-        <HomePage shows={shows} onOpenShow={setSelectedShowId} />
-      )}
-    </>
+      </header>
+
+      {page === "upload" && <UploadPage onStartRender={handleStartRender} />}
+      {page === "processing" && <ProcessingPage jobId={jobId} />}
+      {page === "result" && <ResultPage result={result} productInfo={productInfo} onReset={handleReset} />}
+    </div>
   );
 }
