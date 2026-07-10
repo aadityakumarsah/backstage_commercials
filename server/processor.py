@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import time
+import shutil
 import cv2
 import numpy as np
 from PIL import Image
@@ -37,11 +38,20 @@ def _simple_composite(
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
+    x1 = max(0, min(bbox_pixels["x1"], w - 1))
+    y1 = max(0, min(bbox_pixels["y1"], h - 1))
+    x2 = max(0, min(bbox_pixels["x2"], w))
+    y2 = max(0, min(bbox_pixels["y2"], h))
+    if x2 <= x1 or y2 <= y1:
+        print(f"Invalid bbox after clip ({x1},{y1})-({x2},{y2}) for video ({w}x{h}), copying original")
+        shutil.copy2(video_path, output_path)
+        cap.release()
+        return str(output_path)
+
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(output_path), fourcc, fps, (w, h))
 
     prod_pil = Image.open(product_img_path).convert("RGBA")
-    x1, y1, x2, y2 = bbox_pixels["x1"], bbox_pixels["y1"], bbox_pixels["x2"], bbox_pixels["y2"]
     pw, ph = x2 - x1, y2 - y1
     prod_resized = prod_pil.resize((pw, ph), Image.Resampling.LANCZOS)
 
@@ -95,10 +105,13 @@ def _composite_frames(
     output_path: str,
 ) -> str:
     if _yolo_available:
-        return _composite_with_yolo(
-            video_path, begin_frame, end_frame,
-            placed_image_path, bbox_pixels, output_path,
-        )
+        try:
+            return _composite_with_yolo(
+                video_path, begin_frame, end_frame,
+                placed_image_path, bbox_pixels, output_path,
+            )
+        except Exception as e:
+            print(f"YOLO composite failed ({e}), falling back to simple composite")
     return _simple_composite(
         video_path, begin_frame, end_frame,
         product_img_path, bbox_pixels, output_path,

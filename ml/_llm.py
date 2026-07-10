@@ -12,7 +12,7 @@ if gemini_key:
         api_key=gemini_key,
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
     )
-    MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 elif openrouter_key:
     client = OpenAI(
         api_key=openrouter_key,
