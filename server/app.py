@@ -21,13 +21,15 @@ app = Flask(__name__)
 origins = os.getenv("CORS_ORIGINS", "*")
 CORS(app, origins=origins.split(","))
 
-TMP_DIR = Path(os.getenv("TMP_IMAGES_DIR", "./tmp_images"))
+BASE = Path(__file__).resolve().parent.parent
+
+TMP_DIR = BASE / os.getenv("TMP_IMAGES_DIR", "tmp_images")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
-UPLOAD_DIR = Path("./uploads")
+UPLOAD_DIR = BASE / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-RENDER_DIR = Path("./renders")
+RENDER_DIR = BASE / "renders"
 RENDER_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_VIDEO = {"mp4", "mov", "avi", "webm", "mkv"}

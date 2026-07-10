@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from ml.select_frame import find_best_product_placement_shot
 from ml.insert_product import recursive_placement
 
-RENDER_DIR = Path("./renders")
+RENDER_DIR = Path(__file__).resolve().parent.parent / "renders"
 RENDER_DIR.mkdir(parents=True, exist_ok=True)
 
 try:
