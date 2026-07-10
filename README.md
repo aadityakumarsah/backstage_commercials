@@ -1,88 +1,211 @@
-## Inspiration
-Advertising has always been a **point of tension between streaming platforms and their users**. Show too many ads, and **viewers become frustrated**; show too few, and **platforms lose revenue**. Mid-show ads are especially disruptive because they **break immersion**, interrupt dramatic moments, and often feel abrupt. On the other hand, ads at the beginning often receive less user attention. This behaviour is similar to movie theatres, where many people intentionally arrive 15–20 minutes after the scheduled start time to avoid pre-show ads. 
+# BackstageCommercials
 
-This led us to ask:
-- What if ads did not appear abruptly, but instead blended naturally into the viewing experience?
-- What if they were personalized to each user, visible without demanding full attention, and seamlessly integrated in a way that does not interfere with actors or storytelling?
-- And what if the native objects and decorations in a movie or show could be transformed into ads?
+A framework for embedding personalized product placements into movies and TV shows. Uses AI vision models to identify placement surfaces, generative models to blend products into scenes, and browser automation to enable one-click shopping.
 
-## What it does
-**BackstageCommercials** is a framework for embedding personalized ads directly into the background of movies and TV shows. Instead of interrupting viewers with traditional ad breaks, it integrates Amazon-recommended products naturally into the scene itself. The framework can insert an AI-generated product into the background or replace an unused background object with a product-matched alternative.
+## Architecture
 
-Each inserted product is paired with a subtle on-screen pop-up that appears for the duration of the scene, giving the viewer direct access to the Amazon product page. With one click, or a voice command, a NovaAct agent can automatically add the product to the user’s Amazon cart. This creates a seamless shopping experience without disrupting immersion.
-
-The framework also makes it easier for users to discover decor and products they notice while watching. Rather than taking screenshots, searching with Google Lens, and manually browsing results, the viewer can simply ask Nova, _“Find this tablecloth on Amazon.”_ Nova then finds a visually similar product and automatically adds it to the user’s wishlist.
-## DEMO https://www.youtube.com/watch?v=MqNsoa1Ni94&t=1s
-## Screenshots
-![Screenshot 1](frontend/prime-video-ui/public/screenshort3.png)
-![Screenshot 1](frontend/prime-video-ui/public/screenshort4.png)
-![Screenshot 1](frontend/prime-video-ui/public/screenshort1.png)
-![Screenshot 2](frontend/prime-video-ui/public/screenshort2.png)
-
-## How we built it
-Our pipeline is: select a scene -> identify a horizontal/flat surface on the frame -> place a reference product into the frame -> use Nova agents to enable shopping.
-
-**Starting frame selection:**
-We first identify scene cuts and choose strong candidate frames for product insertion.
-Using OpenCV, we compare neighboring frames and rank candidates based on minimal background motion, which makes placement more stable across the clip. From these candidates, an Amazon Nova model selects the best starting frame.
-
-**Product placement:**
-Next, an adjuster Amazon Nova model predicts the product placement on the first frame of the cut. It returns: the XY corner coordinates of the bounding box,  the reference width and height of the product.
-
-A second critic Nova model then evaluates whether the placement is physically plausible. If the object appears to float, collide unnaturally, or sit in an impossible position, the critic asks the adjuster to generate a new placement.
-
-Once a valid bounding box is selected, we send the frame, bounding box, and reference product image to the FLUX Kontext model with the Finegrain product-placement LoRA adapter, which blends the product into the scene so it appears naturally embedded.
-
-The selected bounding box is then propagated to subsequent frames. This is why a static or near-static background is important. To preserve realism, we use YOLOv8 segmentation to mask moving foreground objects, such as actors, and composite them back over the inserted product. This creates the effect that the product truly exists in the background of the original video.
-
-**Shopping agents:**
-Two Nova agents work together through Flask endpoints:
-* **Amazon Nova 2 Lite** acts as the reasoning agent. It identifies objects in the frame, extracts a description of the requested item, and searches the web for the most similar products.
-* **NovaAct** is the UI agent. It opens the browser and adds the selected item to the user’s Amazon cart or wishlist.
-* When requested, the agent can also find **multiple similar products** and add them all to the wishlist, so the user can compare options later.
-
-**References:**
-
-[Build with Nova](https://nova.amazon.com/dev) - agents, browser search.
-
-[Frontend design inspiration](https://dribbble.com/shots/22647225-Prime-video-animated-screen) - concept for possible Prime-style integration.
-
-[Flux 1 Kontext model](https://huggingface.co/black-forest-labs/FLUX.1-Kontext-dev) - core image generation model.
-
-[Finegrain Product Placement model (LoRA)](https://huggingface.co/finegrain/finegrain-product-placement-lora) - adapts the reference product to the placement area.
-
-[YOLO8-Seg(Ultralytics)](https://docs.ultralytics.com/tasks/segment/) - segments active foreground objects from the static background.
-
-## Challenges we ran into
-* **Compute limits:** Running FLUX at full precision required about **24 GB of VRAM**, which was too costly for our environment. We solved this by quantizing the model to **4-bit**, making inference practical on limited hardware.
-
-* **Generation speed:** Product insertion on a single frame took **3 minutes**, so doing it across an entire cut (30-60FPS) was not realistic. Our workaround was to generate the product only on the **first frame of a scene**, then reuse that placement across the cut while using **YOLOv8 segmentation** to keep moving foreground objects in front.
-
-* **Scene quality:** Product placement only works well when the scene has a stable background and a believable surface to place the object on. In many videos, fast motion, camera movement, or difficult angles made realistic insertion challenging.
-
-## What's next for BackstageCommercials
-* **2D to 3D:** upgrade our placement pipeline from flat-surface, mostly static scenes to 3D-aware product insertion. This would let us handle camera motion, perspective shifts, and more dynamic environments while keeping placements physically believable.
-
-----
-# How to run
-#### Call Amazon Nova 2 Lite and NovaAct Agents:
 ```
-python agent_api.py
+backstage_commercials/
+├── client/              # React frontend (Prime Video-style UI)
+│   └── prime-video-ui/
+│       ├── src/
+│       └── public/
+├── server/              # Flask API + shopping agents
+│   ├── app.py           # API entry point (routes)
+│   └── agents/          # Agent modules
+│       ├── find_product.py      # LLM-based product discovery
+│       ├── search_similar.py    # Amazon search automation
+│       ├── add_to_cart.py       # Cart/wishlist automation
+│       └── browser_agent.py     # Playwright browser driver
+├── ml/                  # ML pipeline (GPU recommended)
+│   ├── select_frame.py  # Scene cut detection & shot scoring
+│   ├── insert_product.py# Recursive placement with LLM feedback
+│   ├── generate_video.py# YOLO-based person masking & frame compositing
+│   ├── flux.py          # FLUX Kontext model integration
+│   └── pipeline.py      # End-to-end pipeline orchestrator
+├── scripts/             # Standalone test & utility scripts
+├── .env                 # Local environment configuration
+└── requirements.txt     # Python dependencies
 ```
-Endpoints:
+
+## Tech Stack
+
+| Layer | Technology | Hosting |
+|---|---|---|
+| **Frontend** | React 19, Vite, CSS-in-JS | Vercel / Netlify |
+| **API Server** | Python 3.11+, Flask, Flask-CORS | Render / Railway |
+| **LLM Provider** | OpenRouter (Gemini, Claude) | External API |
+| **Browser Automation** | Playwright (Chromium) | Bundled with server |
+| **ML Pipeline** | OpenCV, PyTorch, FLUX, YOLOv8, Ultralytics | GPU instance |
+| **Image Processing** | Pillow, NumPy | Bundled with ML |
+
+## Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- An [OpenRouter](https://openrouter.ai) API key (free tier available)
+
+## Quick Start
+
+### 1. Environment
+
+```bash
+cp .env.example .env
 ```
-/find-it-on-amazon # Amazon Nova 2 Lite processes input frame and user request, returns Amazon link and item description.
-/select-similar-from-amazon # NovaAct uses product description and find two (k=2 by default) best items that fit description well. Returns URL of the selected items.
-/select-similar-from-amazon/add_to_list # Same as above but instead adds to the selected list on  Amazon.
-/add-it-to-shopping-cart # NovaAct adds the product to the user's shopping cart.
-/add-it-to-shopping-list # using product link adds it to the user's shopping cart.
+
+Edit `.env` and set your `OPENROUTER_API_KEY`.
+
+### 2. Backend
+
+```bash
+pip install -r requirements.txt
+playwright install chromium
+
+python -m server.app
 ```
-#### Run Frontend App
-```
-cd frontend/prime-video-ui
+
+The API starts on `http://0.0.0.0:8000`.
+
+### 3. Frontend
+
+```bash
+cd client/prime-video-ui
 npm install
-npm install lucide-react
 npm run dev
 ```
-# backstage_commercials
-# sai
+
+Opens on `http://localhost:5173`.
+
+## Configuration
+
+All configuration is through environment variables (`.env`):
+
+| Variable | Default | Description |
+|---|---|---|
+| `OPENROUTER_API_KEY` | — | OpenRouter API key (required) |
+| `OPENROUTER_MODEL` | `google/gemini-3.1-flash-lite-preview` | LLM for vision & text tasks |
+| `BROWSER_HEADLESS` | `true` | Run Playwright in headless mode |
+| `AMAZON_DOMAIN` | `https://www.amazon.ca` | Amazon marketplace domain |
+| `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
+| `TMP_IMAGES_DIR` | `./tmp_images` | Directory for uploaded frame images |
+
+## API Reference
+
+### `POST /find-it-on-amazon`
+
+Identifies a product in an image and returns Amazon links.
+
+**Request:**
+```json
+{
+  "image_url": "frame_001.jpg",
+  "user_prompt": "Find this coffee table on Amazon"
+}
+```
+
+**Response:** JSON object with `amazon_link`, `item_description`, `is_found`.
+
+### `POST /select-similar-from-amazon`
+
+Searches Amazon for products matching a description.
+
+**Request:**
+```json
+{
+  "product_description": "wooden coffee table"
+}
+```
+
+**Response:**
+```json
+{ "amazon_links": ["https://www.amazon.ca/...", ...] }
+```
+
+### `POST /add-it-to-shopping-cart`
+
+Opens a product URL and clicks "Add to Cart".
+
+**Request:**
+```json
+{ "product_url": "https://www.amazon.ca/..." }
+```
+
+**Response:**
+```json
+{ "agent_finished": true }
+```
+
+### `POST /add-it-to-shopping-list`
+
+Opens a product URL and adds it to the wishlist.
+
+**Request:**
+```json
+{ "product_url": "https://www.amazon.ca/..." }
+```
+
+## ML Pipeline (GPU Required)
+
+The full product-placement pipeline processes a video end-to-end:
+
+```bash
+pip install -r requirements-gpu.txt
+python -m ml.pipeline <video.mp4> <product.png> "Product Description"
+```
+
+Steps:
+1. **Scene detection** — OpenCV histogram + homography analysis finds stable shots
+2. **LLM shot scoring** — Vision model rates each shot for placement suitability
+3. **Bounding box prediction** — Recursive LLM placement with evaluation model feedback
+4. **Frame compositing** — FLUX Kontext model blends the product into the first frame
+5. **Frame propagation** — Product patch is carried across frames with YOLO person masking
+
+## Deployment
+
+### Server (Render / Railway)
+
+```dockerfile
+FROM python:3.11-slim
+RUN pip install -r requirements.txt && playwright install chromium
+COPY . .
+CMD ["python", "-m", "server.app"]
+```
+
+### Frontend (Vercel)
+
+```
+Build command: cd client/prime-video-ui && npm run build
+Output dir: client/prime-video-ui/dist
+```
+
+### ML Pipeline (GPU)
+
+The ML pipeline requires a GPU with 24 GB+ VRAM for FLUX inference. Deploy via:
+
+- [RunPod](https://runpod.io) — serverless GPU
+- [Replicate](https://replicate.com) — model hosting
+- Self-hosted with Docker + NVIDIA container toolkit
+
+## Migration from Amazon Nova
+
+This project originally used Amazon Nova models and NovaAct for browser automation. It has been migrated to:
+
+| Original | Replacement |
+|---|---|
+| `AMZN Nova 2 Lite` (vision LLM) | `google/gemini-3.1-flash-lite-preview` via OpenRouter |
+| `NovaAct` (browser agent) | Playwright (Chromium) |
+| `NOVA_API_KEY` | `OPENROUTER_API_KEY` |
+
+## Development
+
+```bash
+# Run linting
+cd client/prime-video-ui && npm run lint
+
+# Run standalone test
+python -m scripts.test_images
+```
+
+## License
+
+MIT

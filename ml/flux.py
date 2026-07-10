@@ -77,7 +77,7 @@ def place_product(scene_image, reference, bbox, product_description):
         prompt=prompt,
     )
     result.output.save("flux_output.png")
-    return result.output. "flux_output.png"
+    return result.output, "flux_output.png"
 
 
 if __name__ == "__main__":

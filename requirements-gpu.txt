@@ -1,0 +1,7 @@
+# Optional: only needed for FLUX image generation pipeline (src/flux.py, src/pipeline.py)
+# finegrain-toolbox must be cloned from https://github.com/finegrain/finegrain-toolbox
+torch>=2.0
+optimum[quanto]
+huggingface-hub
+diffusers
+transformers
