@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   Upload,
   Film,
@@ -325,35 +325,65 @@ function UploadPage({ onStartRender }) {
   );
 }
 
-const STEPS = [
-  "Analyzing scene structure",
-  "Detecting placement surfaces",
-  "Positioning product in scene",
-  "Blending with AI generation",
-  "Finalizing output video",
-];
+const STATUS_STEPS = {
+  "analyzing": 0,
+  "extracting": 1,
+  "placing": 2,
+  "rendering": 3,
+};
+const STATUS_LABELS = {
+  "analyzing": "Analyzing scene structure",
+  "extracting": "Detecting placement surfaces",
+  "placing": "Positioning product in scene",
+  "rendering": "Blending with AI generation",
+  "completed": "Finalizing output video",
+};
+const STATUS_ORDER = ["uploaded", "analyzing", "extracting", "placing", "rendering", "completed", "failed"];
 
-function ProcessingPage({ jobId }) {
-  const [progress, setProgress] = useState(0);
-  const [activeStep, setActiveStep] = useState(-1);
+function ProcessingPage({ jobId, onDone, onError }) {
+  const [statusData, setStatusData] = useState({ status: "uploaded", progress: 0, message: "" });
 
   useEffect(() => {
     let cancelled = false;
-    const totalDuration = 25000;
-    const stepInterval = totalDuration / STEPS.length;
-    const start = Date.now();
+    let retries = 0;
 
-    const tick = () => {
-      if (cancelled) return;
-      const elapsed = Date.now() - start;
-      const pct = Math.min(elapsed / totalDuration, 1);
-      setProgress(pct);
-      setActiveStep(Math.min(Math.floor(elapsed / stepInterval), STEPS.length - 1));
-      if (pct < 1) requestAnimationFrame(tick);
+    const poll = async () => {
+      while (!cancelled) {
+        try {
+          const res = await fetch(`${API}/render/status/${jobId}`);
+          if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`);
+          const data = await res.json();
+          if (cancelled) return;
+          setStatusData(data);
+
+          if (data.status === "completed") {
+            onDone(jobId);
+            return;
+          }
+          if (data.status === "failed") {
+            onError(data.message || "Processing failed");
+            return;
+          }
+          retries = 0;
+        } catch (e) {
+          retries++;
+          if (retries > 30) {
+            onError("Status check failed: " + e.message);
+            return;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
     };
-    requestAnimationFrame(tick);
+    poll();
     return () => { cancelled = true; };
-  }, []);
+  }, [jobId, onDone, onError]);
+
+  const activeIdx = STATUS_STEPS[statusData.status] ?? -1;
+  const doneCount = activeIdx;
+  const progress = statusData.progress / 100;
+
+  const steps = useMemo(() => Object.values(STATUS_LABELS), []);
 
   return (
     <div className="page">
@@ -363,17 +393,17 @@ function ProcessingPage({ jobId }) {
             <Loader2 size={48} className="spin" style={{ color: "#6366f1", animation: "spin 1.5s linear infinite" }} />
           </div>
           <h2>Processing your video</h2>
-          <p>Our AI is placing your product into the scene. This may take a minute.</p>
+          <p>{statusData.message || "Our AI is placing your product into the scene. This may take a minute."}</p>
 
           <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
+            <div className="progress-fill" style={{ width: `${Math.max(progress * 100, (doneCount / steps.length) * 100)}%` }} />
           </div>
 
           <div className="step-list">
-            {STEPS.map((s, i) => (
-              <div key={s} className={`step ${i < activeStep ? "done" : i === activeStep ? "active" : ""}`}>
-                {i < activeStep ? <CheckCircle2 className="step-icon" /> :
-                 i === activeStep ? <Loader2 size={16} className="step-icon spin" style={{ animation: "spin 1s linear infinite" }} /> :
+            {steps.map((s, i) => (
+              <div key={s} className={`step ${i < doneCount ? "done" : i === doneCount ? "active" : ""}`}>
+                {i < doneCount ? <CheckCircle2 className="step-icon" /> :
+                 i === doneCount ? <Loader2 size={16} className="step-icon spin" style={{ animation: "spin 1s linear infinite" }} /> :
                  <div className="step-icon" />}
                 {s}
               </div>
@@ -417,7 +447,11 @@ function ResultPage({ result, productInfo, onReset }) {
         </div>
 
         <div className="video-wrap">
-          {result?.video_url ? (
+          {result?.error ? (
+            <div style={{ padding: "80px 20px", textAlign: "center", color: "#f87171" }}>
+              {result.error}
+            </div>
+          ) : result?.video_url ? (
             <video ref={videoRef} src={result.video_url} controls autoPlay playsInline />
           ) : (
             <div style={{ padding: "80px 20px", textAlign: "center", color: "rgba(255,255,255,0.3)" }}>
@@ -490,10 +524,22 @@ export default function App() {
     setJobId(id);
     setProductInfo(info);
     setPage("processing");
-    setTimeout(() => {
+  };
+
+  const handleProcessingDone = async (id) => {
+    try {
+      const res = await fetch(`${API}/render/result/${id}`);
+      const data = await res.json();
+      setResult(data);
+    } catch {
       setResult({ job_id: id, video_url: null });
-      setPage("result");
-    }, 6000);
+    }
+    setPage("result");
+  };
+
+  const handleProcessingError = (msg) => {
+    setResult({ error: msg });
+    setPage("result");
   };
 
   const handleReset = () => {
@@ -519,7 +565,9 @@ export default function App() {
       </header>
 
       {page === "upload" && <UploadPage onStartRender={handleStartRender} />}
-      {page === "processing" && <ProcessingPage jobId={jobId} />}
+      {page === "processing" && (
+        <ProcessingPage jobId={jobId} onDone={handleProcessingDone} onError={handleProcessingError} />
+      )}
       {page === "result" && <ResultPage result={result} productInfo={productInfo} onReset={handleReset} />}
     </div>
   );

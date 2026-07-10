@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 from server.agents.find_product import ask_search_product_agent
 from server.agents.add_to_cart import ask_add_to_shopping_cart
 from server.agents.search_similar import ask_search_similar_agent
+from server.processor import start_processor
 
 load_dotenv()
 
@@ -95,6 +96,8 @@ def create_render():
         "output_url": None,
     }
 
+    start_processor(RENDER_JOBS[job_id], RENDER_JOBS)
+
     return jsonify({"job_id": job_id, "status": "uploaded"})
 
 
@@ -107,6 +110,7 @@ def render_status(job_id: str):
         "job_id": job["job_id"],
         "status": job["status"],
         "progress": job.get("progress", 0),
+        "message": job.get("message", ""),
         "created_at": job["created_at"],
     })
 

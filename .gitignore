@@ -10,3 +10,6 @@ nova_profile/
 .DS_Store
 dist/
 build/
+*.pt
+uploads/
+renders/
