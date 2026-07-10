@@ -94,8 +94,12 @@ def generate_video(
     # -------------------------------------------------
     # Video writer
     # -------------------------------------------------
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(output_path, fourcc, fps, (frame_w, frame_h))
+    fourcc = cv2.VideoWriter_fourcc(*"avc1")
+    writer = cv2.VideoWriter(output_path, cv2.CAP_FFMPEG, fourcc, fps, (frame_w, frame_h))
+    if not writer.isOpened():
+        writer = cv2.VideoWriter(output_path, fourcc, fps, (frame_w, frame_h))
+    if not writer.isOpened():
+        writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (frame_w, frame_h))
     if not writer.isOpened():
         raise ValueError(f"Could not open video writer for: {output_path}")
 

@@ -48,8 +48,11 @@ def _simple_composite(
         cap.release()
         return str(output_path)
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(str(output_path), fourcc, fps, (w, h))
+    fourcc = cv2.VideoWriter_fourcc(*"avc1")
+    writer = cv2.VideoWriter(str(output_path), cv2.CAP_FFMPEG, fourcc, fps, (w, h))
+    if not writer.isOpened():
+        fallback_fcc = cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cv2.VideoWriter(str(output_path), fallback_fcc, fps, (w, h))
 
     prod_pil = Image.open(product_img_path).convert("RGBA")
     pw, ph = x2 - x1, y2 - y1
