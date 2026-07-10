@@ -166,7 +166,17 @@ def run_job(job: dict, status_callback):
             background_path, product_path, product_desc, max_iters=4,
         )
         if bbox_coords is None:
-            raise RuntimeError("Failed to find valid product placement")
+            # Fallback: place product at center of frame at 20% size
+            h, w = frame.shape[:2]
+            margin = 0.3
+            pw, ph = int(w * 0.2), int(h * 0.2)
+            cx, cy = int(w * 0.5), int(h * 0.45)
+            bbox_coords = {
+                "x1": cx - pw // 2, "y1": cy - ph // 2,
+                "x2": cx + pw // 2, "y2": cy + ph // 2,
+            }
+            placed_image = background_path
+            status_callback(job_id, "placing", 30, "Using default placement (LLM could not find optimal position)")
 
         # Step 4 — composite across frames
         status_callback(job_id, "rendering", 55, "Rendering output video")

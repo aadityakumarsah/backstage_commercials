@@ -216,7 +216,7 @@ Return ONLY valid JSON in exactly this schema:
                     ],
                 },
             ],
-            max_tokens=700,
+            max_tokens=1024,
         )
 
         text = response.choices[0].message.content.replace("```json", "").replace("```", "")

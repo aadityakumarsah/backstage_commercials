@@ -38,10 +38,10 @@ def paste_product(background_path, product_path, bbox, output_path):
     bg.save(output_path, "PNG")
 
 
-placement_prompt = """
+placement_prompt_template = """
 You are an AI marketing assistant specialized in realistic product placement.
 
-Place a coffee jar naturally in the image.
+Place a {product} naturally in the image.
 
 Rules:
 - Must be in the BACKGROUND
@@ -56,26 +56,26 @@ Rules:
 
 Coordinates must be normalized (0..1).
 
-Return JSON:
+Return ONLY valid JSON with exactly this structure, and nothing else:
 
-{
+{{
  "placement_reason": "...",
  "support_surface": "...",
- "bounding_box": {
+ "bounding_box": {{
     "x": float,
     "y": float,
     "width": float,
     "height": float
- }
-}
+ }}
+}}
 """
 
-adjustment_prompt = """
+adjustment_prompt_template = """
 You are an AI marketing assistant specialized in realistic product placement.
 
 The product was previously placed but needs adjustment.
 
-Previous placement had issues. Adjust the coffee jar position slightly.
+Previous placement had issues. Adjust the {product} position slightly.
 
 Rules:
 - Must be in the BACKGROUND
@@ -95,18 +95,18 @@ Adjustment guidelines:
 - To make smaller: decrease width and height
 - To make larger: increase width and height
 
-Return JSON:
+Return ONLY valid JSON with exactly this structure, and nothing else:
 
-{
+{{
  "placement_reason": "...",
  "support_surface": "...",
- "bounding_box": {
+ "bounding_box": {{
     "x": float,
     "y": float,
     "width": float,
     "height": float
- }
-}
+ }}
+}}
 """
 
 evaluation_prompt_template = """
@@ -174,9 +174,10 @@ Set valid=false if there are any clear issues, especially:
 """
 
 
-def ask_placement_model(image_path, user_text, previous_bbox=None):
+def ask_placement_model(image_path, user_text, previous_bbox=None, product_desc="product"):
     mime, b64 = encode_image(image_path)
-    prompt = placement_prompt if previous_bbox is None else adjustment_prompt
+    template = placement_prompt_template if previous_bbox is None else adjustment_prompt_template
+    prompt = template.format(product=product_desc)
     user_message = user_text
     if previous_bbox is not None:
         user_message += f"\n\nPrevious bbox that had issues: {json.dumps(previous_bbox)}"
@@ -195,7 +196,7 @@ def ask_placement_model(image_path, user_text, previous_bbox=None):
                 ],
             },
         ],
-        max_tokens=600,
+        max_tokens=1024,
     )
 
     result = response.choices[0].message.content
@@ -223,7 +224,7 @@ def ask_evaluation_model(image_path, bbox, product_description):
                 ],
             },
         ],
-        max_tokens=600,
+        max_tokens=1024,
     )
 
     result = response.choices[0].message.content
@@ -247,13 +248,15 @@ def recursive_placement(background, product, product_description, max_iters=6):
         try:
             if step == 0:
                 result = ask_placement_model(
-                    background, f"Place the {product_description} in the image"
+                    background, f"Place the {product_description} in the image",
+                    product_desc=product_description,
                 )
             else:
                 result = ask_placement_model(
                     background,
                     f"Adjust the {product_description} placement based on previous issues",
                     previous_bbox=previous_bbox,
+                    product_desc=product_description,
                 )
 
             data = extract_json(result)

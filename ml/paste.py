@@ -157,7 +157,7 @@ def ask_placement_model(image_path, user_text, previous_bbox=None):
                 ],
             },
         ],
-        max_tokens=600,
+        max_tokens=1024,
     )
 
     result = response.choices[0].message.content
@@ -184,7 +184,7 @@ def ask_evaluation_model(image_path, bbox):
                 ],
             },
         ],
-        max_tokens=600,
+        max_tokens=1024,
     )
 
     result = response.choices[0].message.content
