@@ -342,6 +342,7 @@ const STATUS_ORDER = ["uploaded", "analyzing", "extracting", "placing", "renderi
 
 function ProcessingPage({ jobId, onDone, onError }) {
   const [statusData, setStatusData] = useState({ status: "uploaded", progress: 0, message: "" });
+  const steps = useMemo(() => Object.values(STATUS_LABELS), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -379,11 +380,11 @@ function ProcessingPage({ jobId, onDone, onError }) {
     return () => { cancelled = true; };
   }, [jobId, onDone, onError]);
 
-  const activeIdx = STATUS_STEPS[statusData.status] ?? -1;
+  const activeIdx = STATUS_STEPS[statusData.status] ?? (
+    statusData.status === "completed" ? steps.length : -1
+  );
   const doneCount = activeIdx;
   const progress = statusData.progress / 100;
-
-  const steps = useMemo(() => Object.values(STATUS_LABELS), []);
 
   return (
     <div className="page">

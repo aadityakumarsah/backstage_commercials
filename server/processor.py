@@ -105,6 +105,15 @@ def _composite_frames(
     )
 
 
+def _get_frame_range(video_path: str) -> tuple:
+    cap = cv2.VideoCapture(video_path)
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    cap.release()
+    max_frames = int(fps * 10)
+    return 0, min(total - 1, max_frames) if total > 0 else 149
+
+
 def run_job(job: dict, status_callback):
     job_id = job["job_id"]
     video_path = job["video_path"]
@@ -115,19 +124,26 @@ def run_job(job: dict, status_callback):
         # Step 1 — select frame
         status_callback(job_id, "analyzing", 5, "Analyzing scene structure")
         shot = find_best_product_placement_shot(video_path=video_path)
-        begin_frame = shot["best_shot_start_frame"]
-        end_frame = shot["best_shot_end_frame"]
-        if begin_frame is None:
-            raise RuntimeError("No suitable placement shot found in video")
+        begin_frame = shot.get("best_shot_start_frame")
+        end_frame = shot.get("best_shot_end_frame")
 
-        # Step 2 — extract first frame
+        # Fallback: if scene analysis finds no suitable shot, use first 10 seconds
+        if begin_frame is None:
+            status_callback(
+                job_id, "extracting", 10,
+                "No clear shot boundaries found — using full video window",
+            )
+            begin_frame, end_frame = _get_frame_range(video_path)
+
+        # Step 2 — extract the reference frame (middle of the chosen window)
         status_callback(job_id, "extracting", 15, "Extracting placement frame")
         cap = cv2.VideoCapture(video_path)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, begin_frame)
+        mid_frame = (begin_frame + end_frame) // 2
+        cap.set(cv2.CAP_PROP_POS_FRAMES, mid_frame)
         ok, frame = cap.read()
         cap.release()
         if not ok:
-            raise RuntimeError(f"Failed to read frame {begin_frame}")
+            raise RuntimeError(f"Failed to read frame {mid_frame}")
         background_path = str(RENDER_DIR / f"{job_id}_background.png")
         cv2.imwrite(background_path, frame)
 
